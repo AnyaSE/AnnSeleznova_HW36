@@ -7,6 +7,7 @@ import { getUserByName, getUserInfractions } from './user-api.js';
 /**
  * @param {string} username
  * @param {function(string)} callback
+ * @throws {Error}
  */
 function getReasonForWorstInfractionLinkified(username, callback)
 {
@@ -14,9 +15,12 @@ function getReasonForWorstInfractionLinkified(username, callback)
 	{
 		getUserInfractions(user.id, function (result)
 		{
+			if(!result.length) {
+				throw new Error(`User ${username} has no infractions`);
+			}
 			// find most recent infraction with most infraction points
 			let foundIndex = 0;
-			for (let i = result.length - 1; i >= 0; i--)
+			for (let i = 1; i < result.length; i++)
 			{
 				if (result[i].points > result[foundIndex].points)
 				{
@@ -25,10 +29,13 @@ function getReasonForWorstInfractionLinkified(username, callback)
 			}
 
 			// replace urls by links
-			callback(result[foundIndex].reason.replace(
+			const foundReason = result[foundIndex].reason.replace(
 				/\bhttps:\/\/\S+/,
-				match => '<a href="' + match + '">' + match + '</a>'
-			));
+				match => `<a href="${match}">${match}</a>`
+			);
+			callback(foundReason);
+		}) .catch((error) => {
+			throw new Error(`Failed to get infractions for user ${username}`)
 		});
 	});
 }
@@ -36,6 +43,7 @@ function getReasonForWorstInfractionLinkified(username, callback)
 /**
  * @param {string} name
  * @param {function(string)} callback
+ * @throws {Error} 
  */
 function getReasonForMostRecentInfractionLinkified(name, callback)
 {
@@ -43,21 +51,27 @@ function getReasonForMostRecentInfractionLinkified(name, callback)
 	{
 		getUserInfractions(user.id, function (result)
 		{
+			if(!result.length) {
+				throw new Error (`user ${name} has no infractions`)
+			}
 			// find most recent infraction
-			let foundIndex = 0;
+			let recentIndex = 0;
 			for (let i = 1; i < result.length; i++)
 			{
-				if (result[i].id > result[foundIndex].id)
+				if (result[i].id > result[recentIndex].id)
 				{
-					foundIndex = i;
+					recentIndex = i;
 				}
 			}
 
 			// replace urls by links
-			callback(result[foundIndex].reason.replace(
+			const recentReason = result[recentIndex].reason.replace(
 				/\bhttps:\/\/\S+/,
-				match => '<a href="' + match + '">' + match + '</a>'
-			));
+				match => `<a href="${match}">${match}</a>`
+			);
+			callback(recentReason);
+		}) .catch((error) => {
+			throw new Error(`Failed to get infractions for user ${name}`)
 		});
 	});
 }
