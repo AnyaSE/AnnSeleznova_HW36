@@ -5,39 +5,43 @@
 import { getUserByName, getUserInfractions } from './user-api.js';
 
 /**
+ * @param {string} str
+ * @returns {string}
+ */
+
+function linkifyUrls(str) {
+	return str.replace(
+	  /\bhttps:\/\/\S+/,
+	  (match) => `<a href="${match}">${match}</a>`
+	);
+  }
+
+
+/**
  * @param {string} username
  * @param {function(string)} callback
  * @throws {Error}
  */
-function getReasonForWorstInfractionLinkified(username, callback)
-{
-	getUserByName(username, function (user)
-	{
-		getUserInfractions(user.id, function (result)
-		{
-			if(!result.length) {
-				throw new Error(`User ${username} has no infractions`);
+async function getReasonForWorstInfractionLinkified(username, callback) {
+	try {
+		const user = await getUserByName(username);
+		const result = await getUserInfractions(user.id);
+		if (!result.length) {
+			throw new Error(`User ${username} has no infractions`);
+		}
+		
+		let foundIndex = result[0];
+		for (let i = 1; i < result.length; i++) {
+			if (result[i].points > foundIndex.points) {
+				foundIndex = result[i];
 			}
-			// find most recent infraction with most infraction points
-			let foundIndex = 0;
-			for (let i = 1; i < result.length; i++)
-			{
-				if (result[i].points > result[foundIndex].points)
-				{
-					foundIndex = i;
-				}
-			}
+		}
 
-			// replace urls by links
-			const foundReason = result[foundIndex].reason.replace(
-				/\bhttps:\/\/\S+/,
-				match => `<a href="${match}">${match}</a>`
-			);
-			callback(foundReason);
-		}) .catch((error) => {
-			throw new Error(`Failed to get infractions for user ${username}`)
-		});
-	});
+		const linkifiedReason = linkifyUrls(foundIndex.reason);
+		callback(linkifiedReason);
+	} catch (error) {
+		throw new Error(`Failed to get worst infraction for user ${username}`);
+	}
 }
 
 /**
@@ -45,35 +49,27 @@ function getReasonForWorstInfractionLinkified(username, callback)
  * @param {function(string)} callback
  * @throws {Error} 
  */
-function getReasonForMostRecentInfractionLinkified(name, callback)
-{
-	getUserByName(name, function (user)
-	{
-		getUserInfractions(user.id, function (result)
-		{
-			if(!result.length) {
-				throw new Error (`user ${name} has no infractions`)
+async function getReasonForMostRecentInfractionLinkified(name, callback) {
+	try {
+		const user = await getUserByName(name);
+		const result = await getUserInfractions(user.id);
+		if (!result.length) {
+			throw new Error(`User ${name} has no infractions`);
+		}
+		
+		let recentIndex = result[0];
+		for (let i = 1; i < result.length; i++) {
+			if (result[i].points > recentIndex.points) {
+				recentIndex = result[i];
 			}
-			// find most recent infraction
-			let recentIndex = 0;
-			for (let i = 1; i < result.length; i++)
-			{
-				if (result[i].id > result[recentIndex].id)
-				{
-					recentIndex = i;
-				}
-			}
+		}
 
-			// replace urls by links
-			const recentReason = result[recentIndex].reason.replace(
-				/\bhttps:\/\/\S+/,
-				match => `<a href="${match}">${match}</a>`
-			);
-			callback(recentReason);
-		}) .catch((error) => {
-			throw new Error(`Failed to get infractions for user ${name}`)
-		});
-	});
+		const linkifiedReason = linkifyUrls(recentIndex.reason);
+		callback(linkifiedReason);
+
+	} catch (error) {
+		throw new Error(`Failed to get most recent infraction for user ${name}`);
+	}
 }
 
 /**
@@ -81,16 +77,18 @@ function getReasonForMostRecentInfractionLinkified(name, callback)
  * @param {string} username
  * @returns {Promise.<Object>}
  */
-export function getRelevantInfractionReasons(username)
-{
-	return new Promise(function (resolve)
-	{
-		getReasonForWorstInfractionLinkified(username, function (worst)
-		{
-			getReasonForMostRecentInfractionLinkified(username, function (mostRecent)
-			{
-				resolve({mostRecent, worst});
-			});
+export async function getRelevantInfractionReasons(username) {
+	try {
+		const worst = await new Promise((resolve) => {
+			getReasonForWorstInfractionLinkified(username, resolve);
 		});
-	});
-}
+
+		const mostRecent = await new Promise((resolve) => {
+			getReasonForMostRecentInfractionLinkified(username, resolve);
+		});
+		
+		return { worst, mostRecent };
+	} catch (error) {
+		throw new Error(`Failed to get relevant infraction reasons for user ${username}`);
+	}
+};
